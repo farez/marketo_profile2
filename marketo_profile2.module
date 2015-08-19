@@ -1,0 +1,51 @@
+<?php
+
+function marketo_profile2_user_presave(&$edit, $account, $category)
+{
+	// dpm($edit);
+	// dpm($account);
+	// dpm($category);
+	$profile_array_name = 'profile_'.$category;
+	// dpm('PROFILE ARRAY NAME '.$profile_array_name);
+	if (isset($edit[$profile_array_name])) {
+		$language = $account->language;
+		foreach ($edit[$profile_array_name] as $fieldname => $data) {
+			// for term id, get its term name instead
+			if (isset($data[$language][0]['tid']) || isset($data[LANGUAGE_NONE][0]['tid'])) {
+				$field_language = (isset($data[$language]))? $language : LANGUAGE_NONE;
+				$tid = $data[$field_language][0]['tid'];
+				$data[$field_language][0]['value'] = b2b_api_term_name_from_tid($tid);
+			}
+			$edit[$fieldname] = $data;
+			// dpm($fieldname);
+		}
+	}
+}
+
+function marketo_profile2_form_alter(&$form, &$form_state, $form_id) {
+	if ($form_id == 'marketo_ma_admin_settings_form') {
+		$user_fields = field_info_instances('profile2', 'main');
+		$fieldmap = variable_get('marketo_ma_user_fieldmap', array());
+		$default_options = array(MARKETO_MA_WEBFORM_COMPONENT_NONE => '- None -');
+		$marketo_options = _marketo_ma_get_field_options();
+		$options = array_merge($default_options, $marketo_options);
+
+		foreach ($user_fields as $key => $value) {
+			$form['marketo_ma_tabs']['marketo_ma_user']['marketo_ma_user_fieldmap'][$key] = array(
+				'#title' => check_plain($value['label'] . ' (' . $value['field_name'] . ')'),
+				'#title_display' => 'invisible',
+				'#type' => 'select',
+				'#options' => $options,
+			);
+			if (array_key_exists($key, $fieldmap)) {
+				if (!array_key_exists($fieldmap[$key], $options)) {
+					$form['marketo_ma_tabs']['marketo_ma_user']['marketo_ma_user_fieldmap'][$key]['#options'] = array_merge(
+						array($fieldmap[$key] => "Undefined Field ($fieldmap[$key])"), $options
+					);
+				}
+
+				$form['marketo_ma_tabs']['marketo_ma_user']['marketo_ma_user_fieldmap'][$key]['#default_value'] = $fieldmap[$key];
+			}
+		}		
+	}
+}

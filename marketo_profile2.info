@@ -1,0 +1,6 @@
+name = Marketo Profile2 integration
+description = Allows Profile2 fields to be integrated into Marketo analytics
+core = 7.x
+version = 7.x-0.1
+
+dependencies[] = marketo_ma
