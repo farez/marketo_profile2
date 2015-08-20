@@ -2,11 +2,7 @@
 
 function marketo_profile2_user_presave(&$edit, $account, $category)
 {
-	// dpm($edit);
-	// dpm($account);
-	// dpm($category);
 	$profile_array_name = 'profile_'.$category;
-	// dpm('PROFILE ARRAY NAME '.$profile_array_name);
 	if (isset($edit[$profile_array_name])) {
 		$language = $account->language;
 		foreach ($edit[$profile_array_name] as $fieldname => $data) {
@@ -17,35 +13,73 @@ function marketo_profile2_user_presave(&$edit, $account, $category)
 				$data[$field_language][0]['value'] = b2b_api_term_name_from_tid($tid);
 			}
 			$edit[$fieldname] = $data;
-			// dpm($fieldname);
 		}
 	}
 }
 
 function marketo_profile2_form_alter(&$form, &$form_state, $form_id) {
 	if ($form_id == 'marketo_ma_admin_settings_form') {
-		$user_fields = field_info_instances('profile2', 'main');
-		$fieldmap = variable_get('marketo_ma_user_fieldmap', array());
-		$default_options = array(MARKETO_MA_WEBFORM_COMPONENT_NONE => '- None -');
-		$marketo_options = _marketo_ma_get_field_options();
-		$options = array_merge($default_options, $marketo_options);
 
-		foreach ($user_fields as $key => $value) {
-			$form['marketo_ma_tabs']['marketo_ma_user']['marketo_ma_user_fieldmap'][$key] = array(
-				'#title' => check_plain($value['label'] . ' (' . $value['field_name'] . ')'),
-				'#title_display' => 'invisible',
-				'#type' => 'select',
-				'#options' => $options,
-			);
-			if (array_key_exists($key, $fieldmap)) {
-				if (!array_key_exists($fieldmap[$key], $options)) {
-					$form['marketo_ma_tabs']['marketo_ma_user']['marketo_ma_user_fieldmap'][$key]['#options'] = array_merge(
-						array($fieldmap[$key] => "Undefined Field ($fieldmap[$key])"), $options
+		$profile2_types = profile2_get_types();
+		if ($profile2_types) {
+			_marketo_profile2_add_profile_type_selector($profile2_types, $form);
+			$profile_type = variable_get('marketo_profile2_type', '');
+			if ($profile_type) {
+				$user_fields = field_info_instances('profile2', $profile_type);
+				$fieldmap = variable_get('marketo_ma_user_fieldmap', array());
+				$default_options = array(MARKETO_MA_WEBFORM_COMPONENT_NONE => '- None -');
+				$marketo_options = _marketo_ma_get_field_options();
+				$options = array_merge($default_options, $marketo_options);
+
+				foreach ($user_fields as $key => $value) {
+					$form['marketo_ma_tabs']['marketo_ma_user']['marketo_ma_user_fieldmap'][$key] = array(
+						'#title' => check_plain($value['label'] . ' (' . $value['field_name'] . ')'),
+						'#title_display' => 'invisible',
+						'#type' => 'select',
+						'#options' => $options,
 					);
-				}
+					if (array_key_exists($key, $fieldmap)) {
+						if (!array_key_exists($fieldmap[$key], $options)) {
+							$form['marketo_ma_tabs']['marketo_ma_user']['marketo_ma_user_fieldmap'][$key]['#options'] = array_merge(
+								array($fieldmap[$key] => "Undefined Field ($fieldmap[$key])"), $options
+							);
+						}
 
-				$form['marketo_ma_tabs']['marketo_ma_user']['marketo_ma_user_fieldmap'][$key]['#default_value'] = $fieldmap[$key];
-			}
-		}		
+						$form['marketo_ma_tabs']['marketo_ma_user']['marketo_ma_user_fieldmap'][$key]['#default_value'] = $fieldmap[$key];
+					}
+				}
+			} // if profile_type
+			$form['#submit'][] = 'marketo_profile2_admin_settings_form_submit';
+		} // if profile2_types		
 	}
 }
+
+/**
+ * Helper function to add the Profile2 type selector to the Marketo User integration form
+ */
+function _marketo_profile2_add_profile_type_selector($profile2_types, &$form) {
+	$options = array('none' => t('Do not integrate Profile2 fields'));
+	foreach ($profile2_types as $profile2_type_name => $data) {
+		$options[$profile2_type_name] = $data->label.' ('.$profile2_type_name.')';
+	}
+	$form['marketo_ma_tabs']['marketo_ma_user']['marketo_profile2_type'] = array(
+		'#type' => 'select',
+		'#title' => t('Select a profile type to integrate with Marketo'),
+		'#options' => $options,
+		'#default_value' => variable_get('marketo_profile2_type', 'none'),
+		'#description' => t('After selecting the profile type, click on Save Configuration below, and then the fields from the selected profile will appear in the USER FIELD MAPPING section below.'),
+	);
+
+	$form['marketo_ma_tabs']['marketo_ma_user']['marketo_ma_user_triggers']['#weight'] = 10;
+	$form['marketo_ma_tabs']['marketo_ma_user']['marketo_profile2_type']['#weight'] = 20;
+	$form['marketo_ma_tabs']['marketo_ma_user']['marketo_ma_user_fieldmap']['#weight'] = 30;	
+}
+
+function marketo_profile2_admin_settings_form_submit($form, &$form_state) {
+	if (isset($form_state['values']['marketo_profile2_type'])) {
+		variable_set('marketo_profile2_type', $form_state['values']['marketo_profile2_type']);
+	}
+}
+
+
+
